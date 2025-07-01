@@ -400,8 +400,16 @@ def api_save_bot_settings():
         if data['max_group_size'] > 20:
             return jsonify({'error': 'Max group size cannot exceed 20'}), 400
         
+        # Convert all values to strings for Redis storage
+        redis_data = {}
+        for key, value in data.items():
+            if isinstance(value, bool):
+                redis_data[key] = 'true' if value else 'false'
+            else:
+                redis_data[key] = str(value)
+        
         # Save to Redis
-        redis_client.hset('bot_settings', mapping=data)
+        redis_client.hset('bot_settings', mapping=redis_data)
         
         # Also update environment variables file for persistence
         env_updates = {
