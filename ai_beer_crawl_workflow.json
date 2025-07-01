@@ -1,0 +1,885 @@
+{
+  "name": "AI Beer Crawl Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-whatsapp",
+      "name": "WhatsApp Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.body.message}}",
+              "operation": "contains",
+              "value2": "beer"
+            }
+          ]
+        }
+      },
+      "id": "check-beer-request",
+      "name": "Check Beer Request",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$node.Set.json.api_base}}/api/beer-crawl/signup",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "whatsapp_number",
+              "value": "={{$json.body.from}}"
+            },
+            {
+              "name": "preferred_area",
+              "value": "northern quarter"
+            },
+            {
+              "name": "preferred_group_type",
+              "value": "mixed"
+            }
+          ]
+        }
+      },
+      "id": "signup-user",
+      "name": "Signup User",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        680,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$node.Set.json.api_base}}/api/beer-crawl/find-group",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "whatsapp_number",
+              "value": "={{$json.body.from}}"
+            }
+          ]
+        }
+      },
+      "id": "find-group",
+      "name": "Find Group",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{$json.group.current_members}}",
+              "operation": "largerEqual",
+              "value2": 5
+            }
+          ]
+        }
+      },
+      "id": "check-group-size",
+      "name": "Check Group Size",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "message": "Found {{$json.group.current_members}} people, 3 males, 2 females looking to go out in northern quarter area at 4pm. Shall I make a whatsapp group for you all?",
+        "additionalFields": {
+          "to": "={{$json.body.from}}"
+        }
+      },
+      "id": "send-group-found-message",
+      "name": "Send Group Found Message",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "message": "Says its finding a group and to wait until at least 5 are filled",
+        "additionalFields": {
+          "to": "={{$json.body.from}}"
+        }
+      },
+      "id": "send-waiting-message",
+      "name": "Send Waiting Message",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "group-confirmation",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "group-confirmation-webhook",
+      "name": "Group Confirmation Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.body.message}}",
+              "operation": "contains",
+              "value2": "yes"
+            }
+          ]
+        }
+      },
+      "id": "check-confirmation",
+      "name": "Check Confirmation",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        460,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$node.Set.json.api_base}}/api/beer-crawl/groups/{{$json.group_id}}/start",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "id": "start-group",
+      "name": "Start Group",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        680,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "message": "Group created! Here are the rules:\\n\\n1. Be respectful to everyone\\n2. Stay with the group\\n3. Drink responsibly\\n4. Have fun!\\n\\nFirst bar poll coming up...",
+        "additionalFields": {
+          "to": "={{$json.whatsapp_group_id}}"
+        }
+      },
+      "id": "send-rules-message",
+      "name": "Send Rules Message",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        900,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "message": "🍺 First Bar Poll! Vote for your preferred starting location:\\n\\n1. {{$json.first_bar.name}} - {{$json.first_bar.address}}\\n\\nMeeting time: {{$json.meeting_time}}\\nMap: {{$json.map_link}}",
+        "additionalFields": {
+          "to": "={{$json.whatsapp_group_id}}"
+        }
+      },
+      "id": "send-bar-poll",
+      "name": "Send Bar Poll",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 3600,
+        "unit": "seconds"
+      },
+      "id": "wait-one-hour",
+      "name": "Wait One Hour",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$node.Set.json.api_base}}/api/beer-crawl/groups/{{$json.group_id}}/next-bar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "id": "get-next-bar",
+      "name": "Get Next Bar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1560,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "message": "🍻 Time for the next bar!\\n\\n{{$json.bar.name}} - {{$json.bar.address}}\\n\\nMeeting time: {{$json.meeting_time}}\\nMap: {{$json.map_link}}\\n\\nSee you there in 15 minutes!",
+        "additionalFields": {
+          "to": "={{$json.whatsapp_group_id}}"
+        }
+      },
+      "id": "send-next-bar-message",
+      "name": "Send Next Bar Message",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        1780,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "dateTime": [
+            {
+              "value1": "={{new Date().getHours()}}",
+              "operation": "smaller",
+              "value2": 24
+            }
+          ]
+        }
+      },
+      "id": "check-time-limit",
+      "name": "Check Time Limit",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "message": "🌙 It's getting late! The group will be automatically deleted at 6am. Thanks for joining the AI Beer Crawl tonight!",
+        "additionalFields": {
+          "to": "={{$json.whatsapp_group_id}}"
+        }
+      },
+      "id": "send-end-message",
+      "name": "Send End Message",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        2220,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$node.Set.json.api_base}}/api/beer-crawl/groups/{{$json.group_id}}/end",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "id": "end-group",
+      "name": "End Group",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        2440,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "group-feedback",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "feedback-webhook",
+      "name": "Feedback Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.body.message}}",
+              "operation": "contains",
+              "value2": "don't like this group"
+            }
+          ]
+        }
+      },
+      "id": "check-group-dislike",
+      "name": "Check Group Dislike",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        460,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$node.Set.json.api_base}}/api/beer-crawl/find-group",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "whatsapp_number",
+              "value": "={{$json.body.from}}"
+            }
+          ]
+        }
+      },
+      "id": "find-alternative-group",
+      "name": "Find Alternative Group",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        680,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "message": "No worries! I found another group for you. Let me know if this one works better.",
+        "additionalFields": {
+          "to": "={{$json.body.from}}"
+        }
+      },
+      "id": "send-alternative-message",
+      "name": "Send Alternative Message",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        900,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "api_base",
+              "value": "http://localhost:5000"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-config",
+      "name": "Set Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 1,
+      "position": [
+        60,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\"status\": \"success\", \"message\": \"Webhook received\"} }}"
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2660,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "cronExpression": "0 6 * * *",
+        "triggerAtStartup": false
+      },
+      "id": "daily-cleanup-cron",
+      "name": "Daily Cleanup (6AM)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        240,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$node.Set.json.api_base}}/api/beer-crawl/groups?status=active",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "id": "get-active-groups",
+      "name": "Get Active Groups",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        460,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-groups",
+      "name": "Split Groups",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [
+        680,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "message": "Good morning! Hope you had a great night out. The group will be deleted now. Thanks for using AI Beer Crawl! 🍺",
+        "additionalFields": {
+          "to": "={{$json.whatsapp_group_id}}"
+        }
+      },
+      "id": "send-morning-message",
+      "name": "Send Morning Message",
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        900,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$node.Set.json.api_base}}/api/beer-crawl/groups/{{$json.id}}/end",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      },
+      "id": "cleanup-group",
+      "name": "Cleanup Group",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        1200
+      ]
+    }
+  ],
+  "connections": {
+    "WhatsApp Webhook": {
+      "main": [
+        [
+          {
+            "node": "Check Beer Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Beer Request": {
+      "main": [
+        [
+          {
+            "node": "Signup User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signup User": {
+      "main": [
+        [
+          {
+            "node": "Find Group",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Group": {
+      "main": [
+        [
+          {
+            "node": "Check Group Size",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Group Size": {
+      "main": [
+        [
+          {
+            "node": "Send Group Found Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Waiting Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Group Confirmation Webhook": {
+      "main": [
+        [
+          {
+            "node": "Check Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Start Group",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Group": {
+      "main": [
+        [
+          {
+            "node": "Send Rules Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Rules Message": {
+      "main": [
+        [
+          {
+            "node": "Send Bar Poll",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Bar Poll": {
+      "main": [
+        [
+          {
+            "node": "Wait One Hour",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait One Hour": {
+      "main": [
+        [
+          {
+            "node": "Get Next Bar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Next Bar": {
+      "main": [
+        [
+          {
+            "node": "Send Next Bar Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Next Bar Message": {
+      "main": [
+        [
+          {
+            "node": "Check Time Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Time Limit": {
+      "main": [
+        [
+          {
+            "node": "Wait One Hour",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send End Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send End Message": {
+      "main": [
+        [
+          {
+            "node": "End Group",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "End Group": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Feedback Webhook": {
+      "main": [
+        [
+          {
+            "node": "Check Group Dislike",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Group Dislike": {
+      "main": [
+        [
+          {
+            "node": "Find Alternative Group",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Alternative Group": {
+      "main": [
+        [
+          {
+            "node": "Send Alternative Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Config": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Group Confirmation Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Feedback Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Daily Cleanup (6AM)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Cleanup (6AM)": {
+      "main": [
+        [
+          {
+            "node": "Get Active Groups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Groups": {
+      "main": [
+        [
+          {
+            "node": "Split Groups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Groups": {
+      "main": [
+        [
+          {
+            "node": "Send Morning Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Morning Message": {
+      "main": [
+        [
+          {
+            "node": "Cleanup Group",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "timezone": "Europe/London"
+  },
+  "createdAt": "2025-06-29T14:45:00.000Z",
+  "updatedAt": "2025-06-29T14:45:00.000Z",
+  "id": "ai-beer-crawl-workflow",
+  "tags": [
+    {
+      "createdAt": "2025-06-29T14:45:00.000Z",
+      "updatedAt": "2025-06-29T14:45:00.000Z",
+      "id": "beer-crawl",
+      "name": "beer-crawl"
+    }
+  ]
+}
+

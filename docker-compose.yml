@@ -1,0 +1,135 @@
+version: '3.8'
+
+services:
+  # Redis for Celery broker and result backend
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL database (production-ready alternative to SQLite)
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: beer_crawl
+      POSTGRES_USER: beer_crawl_user
+      POSTGRES_PASSWORD: beer_crawl_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U beer_crawl_user -d beer_crawl"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Main Flask application
+  web:
+    build:
+      context: .
+      target: development
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=postgresql://beer_crawl_user:beer_crawl_password@postgres:5432/beer_crawl
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - API_BASE_URL=http://web:5000
+      - FLASK_DEBUG=true
+    volumes:
+      - .:/app
+      - ./database:/app/database
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Celery worker
+  worker:
+    build:
+      context: .
+      target: worker
+    environment:
+      - DATABASE_URL=postgresql://beer_crawl_user:beer_crawl_password@postgres:5432/beer_crawl
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - API_BASE_URL=http://web:5000
+    volumes:
+      - .:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+
+  # Celery beat scheduler
+  beat:
+    build:
+      context: .
+      target: beat
+    environment:
+      - DATABASE_URL=postgresql://beer_crawl_user:beer_crawl_password@postgres:5432/beer_crawl
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - API_BASE_URL=http://web:5000
+    volumes:
+      - .:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+
+  # Flower for monitoring Celery tasks
+  flower:
+    build:
+      context: .
+      target: base
+    command: celery -A src.tasks.celery_tasks.celery flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - FLOWER_BASIC_AUTH=admin:password
+    volumes:
+      - .:/app
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # Nginx reverse proxy (optional, for production)
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - web
+    profiles:
+      - production
+
+volumes:
+  redis_data:
+  postgres_data:

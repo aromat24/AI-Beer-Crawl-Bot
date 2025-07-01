@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Beer Crawl - Admin Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+        }
+
+        .card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 5px 0;
+        }
+
+        .stat-label {
+            font-weight: 500;
+        }
+
+        .stat-value {
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #5a6fd8;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .btn-warning {
+            background: #f39c12;
+        }
+
+        .btn-warning:hover {
+            background: #e67e22;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+            font-size: 12px;
+        }
+
+        .data-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+
+        .data-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .log-container {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+
+        .loading {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+        }
+
+        .error {
+            color: #e74c3c;
+            background: #fdf2f2;
+            padding: 10px;
+            border-radius: 6px;
+            border-left: 4px solid #e74c3c;
+        }
+
+        .success {
+            color: #27ae60;
+            background: #f0f9f0;
+            padding: 10px;
+            border-radius: 6px;
+            border-left: 4px solid #27ae60;
+        }
+
+        .actions-card {
+            grid-column: span 2;
+        }
+
+        @media (max-width: 768px) {
+            .actions-card {
+                grid-column: span 1;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .refresh-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+            font-size: 18px;
+            transition: all 0.3s ease;
+        }
+
+        .refresh-btn:hover {
+            transform: scale(1.1);
+            background: #5a6fd8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🍺 AI Beer Crawl Admin Dashboard</h1>
+            <p>Monitor and manage your WhatsApp bot system</p>
+        </div>
+
+        <div class="dashboard-grid">
+            <!-- System Stats -->
+            <div class="card">
+                <h3>📊 System Statistics</h3>
+                <div id="system-stats" class="loading">Loading...</div>
+            </div>
+
+            <!-- User Stats -->
+            <div class="card">
+                <h3>👥 User Statistics</h3>
+                <div id="user-stats" class="loading">Loading...</div>
+            </div>
+
+            <!-- Beer Crawl Stats -->
+            <div class="card">
+                <h3>🍻 Beer Crawl Statistics</h3>
+                <div id="crawl-stats" class="loading">Loading...</div>
+            </div>
+
+            <!-- Redis Stats -->
+            <div class="card">
+                <h3>🔴 Redis Statistics</h3>
+                <div id="redis-stats" class="loading">Loading...</div>
+            </div>
+
+            <!-- Recent Users -->
+            <div class="card">
+                <h3>👤 Recent Users</h3>
+                <div id="recent-users" class="loading">Loading...</div>
+            </div>
+
+            <!-- Recent Beer Crawls -->
+            <div class="card">
+                <h3>🍺 Recent Beer Crawls</h3>
+                <div id="recent-crawls" class="loading">Loading...</div>
+            </div>
+
+            <!-- Redis Data -->
+            <div class="card">
+                <h3>💾 Redis Data</h3>
+                <div id="redis-data" class="loading">Loading...</div>
+            </div>
+
+            <!-- System Actions -->
+            <div class="card actions-card">
+                <h3>⚙️ System Actions</h3>
+                <div>
+                    <button class="btn" onclick="refreshAllData()">🔄 Refresh All Data</button>
+                    <button class="btn btn-warning" onclick="clearDeduplication()">🧹 Clear Deduplication</button>
+                    <button class="btn btn-warning" onclick="clearRedis()">🗑️ Clear Redis/Celery</button>
+                    <button class="btn btn-danger" onclick="clearDatabase()">⚠️ Clear Database</button>
+                </div>
+                <div id="action-result" style="margin-top: 15px;"></div>
+            </div>
+
+            <!-- System Logs -->
+            <div class="card actions-card">
+                <h3>📋 Recent Logs</h3>
+                <div id="system-logs" class="loading">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <button class="refresh-btn" onclick="refreshAllData()" title="Refresh All Data">🔄</button>
+
+    <script>
+        let refreshInterval;
+
+        // Auto-refresh every 30 seconds
+        function startAutoRefresh() {
+            refreshInterval = setInterval(refreshAllData, 30000);
+        }
+
+        function stopAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        }
+
+        async function fetchData(endpoint) {
+            try {
+                const response = await fetch(endpoint);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                return { error: error.message };
+            }
+        }
+
+        async function loadSystemStats() {
+            const data = await fetchData('/api/stats');
+            const container = document.getElementById('system-stats');
+            
+            if (data.error) {
+                container.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="stat-item">
+                    <span class="stat-label">Total Users:</span>
+                    <span class="stat-value">${data.total_users || 0}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Onboarded Users:</span>
+                    <span class="stat-value">${data.onboarded_users || 0}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Active Crawls:</span>
+                    <span class="stat-value">${data.active_crawls || 0}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">New Users (24h):</span>
+                    <span class="stat-value">${data.new_users_24h || 0}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Redis Memory:</span>
+                    <span class="stat-value">${data.redis_used_memory || 'N/A'}</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Dedup Entries:</span>
+                    <span class="stat-value">${data.dedup_entries || 0}</span>
+                </div>
+            `;
+        }
+
+        async function loadUsers() {
+            const data = await fetchData('/api/users');
+            const container = document.getElementById('recent-users');
+            
+            if (data.error) {
+                container.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p>No users found</p>';
+                return;
+            }
+
+            let tableHTML = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Number</th>
+                            <th>Status</th>
+                            <th>Location</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            data.slice(0, 10).forEach(user => {
+                tableHTML += `
+                    <tr>
+                        <td>${user.name || 'N/A'}</td>
+                        <td>${user.whatsapp_number}</td>
+                        <td>${user.onboarding_completed ? '✅ Complete' : '⏳ Pending'}</td>
+                        <td>${user.location || 'N/A'}</td>
+                    </tr>
+                `;
+            });
+
+            tableHTML += '</tbody></table>';
+            container.innerHTML = tableHTML;
+        }
+
+        async function loadCrawls() {
+            const data = await fetchData('/api/crawls');
+            const container = document.getElementById('recent-crawls');
+            
+            if (data.error) {
+                container.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p>No beer crawls found</p>';
+                return;
+            }
+
+            let tableHTML = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Status</th>
+                            <th>Participants</th>
+                            <th>Location</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            data.slice(0, 10).forEach(crawl => {
+                tableHTML += `
+                    <tr>
+                        <td>${crawl.name || 'N/A'}</td>
+                        <td>${crawl.status}</td>
+                        <td>${crawl.current_participants}/${crawl.max_participants}</td>
+                        <td>${crawl.location || 'N/A'}</td>
+                    </tr>
+                `;
+            });
+
+            tableHTML += '</tbody></table>';
+            container.innerHTML = tableHTML;
+        }
+
+        async function loadRedisData() {
+            const data = await fetchData('/api/redis');
+            const container = document.getElementById('redis-data');
+            
+            if (data.error) {
+                container.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                return;
+            }
+
+            let html = '<h4>Main Redis DB (Celery)</h4>';
+            if (data.main_db && data.main_db.error) {
+                html += `<div class="error">${data.main_db.error}</div>`;
+            } else if (data.main_db) {
+                html += `
+                    <div class="stat-item">
+                        <span class="stat-label">Total Keys:</span>
+                        <span class="stat-value">${data.main_db.total_keys}</span>
+                    </div>
+                `;
+            }
+
+            html += '<h4>Deduplication DB</h4>';
+            if (data.dedup_db && data.dedup_db.error) {
+                html += `<div class="error">${data.dedup_db.error}</div>`;
+            } else if (data.dedup_db) {
+                html += `
+                    <div class="stat-item">
+                        <span class="stat-label">Total Keys:</span>
+                        <span class="stat-value">${data.dedup_db.total_keys}</span>
+                    </div>
+                `;
+                
+                if (data.dedup_db.entries && Object.keys(data.dedup_db.entries).length > 0) {
+                    html += '<h5>Recent Entries:</h5>';
+                    Object.entries(data.dedup_db.entries).forEach(([key, value]) => {
+                        html += `
+                            <div class="stat-item" style="font-size: 11px;">
+                                <span>${key}</span>
+                                <span>TTL: ${value.ttl}</span>
+                            </div>
+                        `;
+                    });
+                }
+            }
+
+            container.innerHTML = html;
+        }
+
+        async function loadLogs() {
+            const data = await fetchData('/api/logs');
+            const container = document.getElementById('system-logs');
+            
+            if (data.error) {
+                container.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                return;
+            }
+
+            if (data.logs && data.logs.length > 0) {
+                container.innerHTML = `<div class="log-container">${data.logs.join('')}</div>`;
+            } else {
+                container.innerHTML = '<p>No logs found</p>';
+            }
+        }
+
+        async function clearDeduplication() {
+            if (!confirm('Are you sure you want to clear all deduplication data?')) {
+                return;
+            }
+
+            const resultDiv = document.getElementById('action-result');
+            resultDiv.innerHTML = '<div class="loading">Clearing deduplication data...</div>';
+
+            try {
+                const response = await fetch('/api/clear_dedup', { method: 'POST' });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<div class="success">${data.message}</div>`;
+                    setTimeout(refreshAllData, 1000);
+                } else {
+                    resultDiv.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        async function clearRedis() {
+            if (!confirm('Are you sure you want to clear Redis/Celery queues? This will stop all background tasks!')) {
+                return;
+            }
+
+            const resultDiv = document.getElementById('action-result');
+            resultDiv.innerHTML = '<div class="loading">Clearing Redis data...</div>';
+
+            try {
+                const response = await fetch('/api/clear_redis', { method: 'POST' });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<div class="success">${data.message}</div>`;
+                    setTimeout(refreshAllData, 1000);
+                } else {
+                    resultDiv.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        async function clearDatabase() {
+            const confirmText = 'CLEAR ALL DATA';
+            const userInput = prompt(`⚠️ DANGER: This will permanently delete ALL users and beer crawls!\n\nType "${confirmText}" to confirm:`);
+            
+            if (userInput !== confirmText) {
+                return;
+            }
+
+            const resultDiv = document.getElementById('action-result');
+            resultDiv.innerHTML = '<div class="loading">Clearing database...</div>';
+
+            try {
+                const response = await fetch('/api/clear_database', { method: 'POST' });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<div class="success">${data.message}</div>`;
+                    setTimeout(refreshAllData, 1000);
+                } else {
+                    resultDiv.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        function refreshAllData() {
+            loadSystemStats();
+            loadUsers();
+            loadCrawls();
+            loadRedisData();
+            loadLogs();
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshAllData();
+            startAutoRefresh();
+        });
+
+        // Stop auto-refresh when page is not visible
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                stopAutoRefresh();
+            } else {
+                startAutoRefresh();
+            }
+        });
+    </script>
+</body>
+</html>
