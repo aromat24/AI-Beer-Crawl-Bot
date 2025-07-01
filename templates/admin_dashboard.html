@@ -211,6 +211,89 @@
             transform: scale(1.1);
             background: #5a6fd8;
         }
+
+        /* Bot Controls Styles */
+        .bot-controls {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+        }
+
+        .control-section {
+            margin-bottom: 25px;
+            padding: 15px;
+            background: white;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+        }
+
+        .control-section h4 {
+            margin: 0 0 15px 0;
+            color: #495057;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .control-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+
+        .control-row label {
+            display: flex;
+            align-items: center;
+            font-size: 13px;
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .control-row input[type="number"] {
+            margin-left: 8px;
+            padding: 6px 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            width: 80px;
+            font-size: 13px;
+        }
+
+        .control-row input[type="checkbox"] {
+            margin-right: 8px;
+            transform: scale(1.2);
+        }
+
+        .control-actions {
+            text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .control-actions .btn {
+            margin: 0 10px;
+        }
+
+        .btn-primary {
+            background: #28a745;
+            border-color: #28a745;
+        }
+
+        .btn-primary:hover {
+            background: #218838;
+            border-color: #1e7e34;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            border-color: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            border-color: #545b62;
+        }
     </style>
 </head>
 <body>
@@ -244,7 +327,112 @@
                 <h3>🔴 Redis Statistics</h3>
                 <div id="redis-stats" class="loading">Loading...</div>
             </div>
+        </div>
 
+        <!-- Bot Behavior Controls -->
+        <div class="dashboard-grid" style="margin-top: 20px;">
+            <div class="card" style="grid-column: 1 / -1;">
+                <h3>🤖 Bot Behavior Controls</h3>
+                <div class="bot-controls">
+                    <!-- Group Settings -->
+                    <div class="control-section">
+                        <h4>👥 Group Management</h4>
+                        <div class="control-row">
+                            <label>Min Group Size:</label>
+                            <input type="number" id="min-group-size" min="2" max="10" value="2">
+                            <label>Max Group Size:</label>
+                            <input type="number" id="max-group-size" min="3" max="20" value="5">
+                            <label>Group Creation Threshold:</label>
+                            <input type="number" id="group-threshold" min="1" max="10" value="3">
+                        </div>
+                        <div class="control-row">
+                            <label>Group Deletion Timer (hours):</label>
+                            <input type="number" id="group-deletion-timer" min="1" max="168" value="24">
+                            <label>Session Duration (hours):</label>
+                            <input type="number" id="session-duration" min="1" max="12" value="4">
+                        </div>
+                    </div>
+
+                    <!-- Response Settings -->
+                    <div class="control-section">
+                        <h4>💬 Response Settings</h4>
+                        <div class="control-row">
+                            <label>Message Cooldown (seconds):</label>
+                            <input type="number" id="message-cooldown" min="5" max="300" value="30">
+                            <label>User Cooldown (seconds):</label>
+                            <input type="number" id="user-cooldown" min="5" max="60" value="10">
+                        </div>
+                        <div class="control-row">
+                            <label>Rate Limit Window (seconds):</label>
+                            <input type="number" id="rate-limit-window" min="60" max="3600" value="300">
+                            <label>Max Messages per Window:</label>
+                            <input type="number" id="rate-limit-max" min="1" max="50" value="5">
+                        </div>
+                    </div>
+
+                    <!-- Timing Controls -->
+                    <div class="control-section">
+                        <h4>⏰ Timing Controls</h4>
+                        <div class="control-row">
+                            <label>Bar Progression Time (minutes):</label>
+                            <input type="number" id="bar-progression-time" min="15" max="180" value="60">
+                            <label>Wait Time Between Bars (minutes):</label>
+                            <input type="number" id="wait-between-bars" min="5" max="60" value="15">
+                        </div>
+                        <div class="control-row">
+                            <label>Join Deadline (minutes):</label>
+                            <input type="number" id="join-deadline" min="5" max="120" value="30">
+                            <label>Auto-start Threshold:</label>
+                            <input type="number" id="auto-start-threshold" min="2" max="10" value="4">
+                        </div>
+                    </div>
+
+                    <!-- Bot Behavior -->
+                    <div class="control-section">
+                        <h4>🎯 Bot Behavior</h4>
+                        <div class="control-row">
+                            <label>
+                                <input type="checkbox" id="auto-group-creation" checked>
+                                Auto Group Creation
+                            </label>
+                            <label>
+                                <input type="checkbox" id="smart-matching" checked>
+                                Smart Location Matching
+                            </label>
+                            <label>
+                                <input type="checkbox" id="auto-progression" checked>
+                                Auto Bar Progression
+                            </label>
+                        </div>
+                        <div class="control-row">
+                            <label>
+                                <input type="checkbox" id="welcome-messages" checked>
+                                Send Welcome Messages
+                            </label>
+                            <label>
+                                <input type="checkbox" id="reminder-messages" checked>
+                                Send Reminder Messages
+                            </label>
+                            <label>
+                                <input type="checkbox" id="debug-mode">
+                                Debug Mode
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="control-actions">
+                        <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+                        <button class="btn btn-secondary" onclick="loadSettings()">🔄 Reload Settings</button>
+                        <button class="btn btn-warning" onclick="resetToDefaults()">⚠️ Reset to Defaults</button>
+                    </div>
+
+                    <div id="settings-result" style="margin-top: 15px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid" style="margin-top: 20px;">
             <!-- Recent Users -->
             <div class="card">
                 <h3>👤 Recent Users</h3>
@@ -574,6 +762,114 @@
             loadCrawls();
             loadRedisData();
             loadLogs();
+            loadSettings(); // Load bot settings too
+        }
+
+        // Bot Control Functions
+        async function saveSettings() {
+            const resultDiv = document.getElementById('settings-result');
+            resultDiv.innerHTML = '<div class="loading">Saving settings...</div>';
+
+            const settings = {
+                min_group_size: parseInt(document.getElementById('min-group-size').value),
+                max_group_size: parseInt(document.getElementById('max-group-size').value),
+                group_threshold: parseInt(document.getElementById('group-threshold').value),
+                group_deletion_timer: parseInt(document.getElementById('group-deletion-timer').value),
+                session_duration: parseInt(document.getElementById('session-duration').value),
+                message_cooldown: parseInt(document.getElementById('message-cooldown').value),
+                user_cooldown: parseInt(document.getElementById('user-cooldown').value),
+                rate_limit_window: parseInt(document.getElementById('rate-limit-window').value),
+                rate_limit_max: parseInt(document.getElementById('rate-limit-max').value),
+                bar_progression_time: parseInt(document.getElementById('bar-progression-time').value),
+                wait_between_bars: parseInt(document.getElementById('wait-between-bars').value),
+                join_deadline: parseInt(document.getElementById('join-deadline').value),
+                auto_start_threshold: parseInt(document.getElementById('auto-start-threshold').value),
+                auto_group_creation: document.getElementById('auto-group-creation').checked,
+                smart_matching: document.getElementById('smart-matching').checked,
+                auto_progression: document.getElementById('auto-progression').checked,
+                welcome_messages: document.getElementById('welcome-messages').checked,
+                reminder_messages: document.getElementById('reminder-messages').checked,
+                debug_mode: document.getElementById('debug-mode').checked
+            };
+
+            try {
+                const response = await fetch('/api/bot-settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+
+                const data = await response.json();
+                if (response.ok) {
+                    resultDiv.innerHTML = `<div class="success">✅ Settings saved successfully!</div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/bot-settings');
+                const settings = await response.json();
+
+                if (response.ok) {
+                    // Update form fields with current settings
+                    document.getElementById('min-group-size').value = settings.min_group_size || 2;
+                    document.getElementById('max-group-size').value = settings.max_group_size || 5;
+                    document.getElementById('group-threshold').value = settings.group_threshold || 3;
+                    document.getElementById('group-deletion-timer').value = settings.group_deletion_timer || 24;
+                    document.getElementById('session-duration').value = settings.session_duration || 4;
+                    document.getElementById('message-cooldown').value = settings.message_cooldown || 30;
+                    document.getElementById('user-cooldown').value = settings.user_cooldown || 10;
+                    document.getElementById('rate-limit-window').value = settings.rate_limit_window || 300;
+                    document.getElementById('rate-limit-max').value = settings.rate_limit_max || 5;
+                    document.getElementById('bar-progression-time').value = settings.bar_progression_time || 60;
+                    document.getElementById('wait-between-bars').value = settings.wait_between_bars || 15;
+                    document.getElementById('join-deadline').value = settings.join_deadline || 30;
+                    document.getElementById('auto-start-threshold').value = settings.auto_start_threshold || 4;
+                    document.getElementById('auto-group-creation').checked = settings.auto_group_creation !== false;
+                    document.getElementById('smart-matching').checked = settings.smart_matching !== false;
+                    document.getElementById('auto-progression').checked = settings.auto_progression !== false;
+                    document.getElementById('welcome-messages').checked = settings.welcome_messages !== false;
+                    document.getElementById('reminder-messages').checked = settings.reminder_messages !== false;
+                    document.getElementById('debug-mode').checked = settings.debug_mode === true;
+                }
+            } catch (error) {
+                console.error('Error loading settings:', error);
+            }
+        }
+
+        function resetToDefaults() {
+            if (confirm('Are you sure you want to reset all settings to defaults?')) {
+                // Set default values
+                document.getElementById('min-group-size').value = 2;
+                document.getElementById('max-group-size').value = 5;
+                document.getElementById('group-threshold').value = 3;
+                document.getElementById('group-deletion-timer').value = 24;
+                document.getElementById('session-duration').value = 4;
+                document.getElementById('message-cooldown').value = 30;
+                document.getElementById('user-cooldown').value = 10;
+                document.getElementById('rate-limit-window').value = 300;
+                document.getElementById('rate-limit-max').value = 5;
+                document.getElementById('bar-progression-time').value = 60;
+                document.getElementById('wait-between-bars').value = 15;
+                document.getElementById('join-deadline').value = 30;
+                document.getElementById('auto-start-threshold').value = 4;
+                document.getElementById('auto-group-creation').checked = true;
+                document.getElementById('smart-matching').checked = true;
+                document.getElementById('auto-progression').checked = true;
+                document.getElementById('welcome-messages').checked = true;
+                document.getElementById('reminder-messages').checked = true;
+                document.getElementById('debug-mode').checked = false;
+
+                document.getElementById('settings-result').innerHTML = 
+                    '<div class="success">✅ Settings reset to defaults. Click "Save Settings" to apply.</div>';
+            }
         }
 
         // Initialize dashboard

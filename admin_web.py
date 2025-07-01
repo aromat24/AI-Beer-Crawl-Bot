@@ -316,5 +316,143 @@ def api_clear_database():
     finally:
         conn.close()
 
+@app.route('/api/bot-settings', methods=['GET'])
+def api_get_bot_settings():
+    """Get current bot behavior settings."""
+    redis_client = get_redis_client(0)
+    
+    # Default settings
+    default_settings = {
+        'min_group_size': 2,
+        'max_group_size': 5,
+        'group_threshold': 3,
+        'group_deletion_timer': 24,
+        'session_duration': 4,
+        'message_cooldown': 30,
+        'user_cooldown': 10,
+        'rate_limit_window': 300,
+        'rate_limit_max': 5,
+        'bar_progression_time': 60,
+        'wait_between_bars': 15,
+        'join_deadline': 30,
+        'auto_start_threshold': 4,
+        'auto_group_creation': True,
+        'smart_matching': True,
+        'auto_progression': True,
+        'welcome_messages': True,
+        'reminder_messages': True,
+        'debug_mode': False
+    }
+    
+    if not redis_client:
+        return jsonify(default_settings)
+    
+    try:
+        # Get settings from Redis
+        stored_settings = redis_client.hgetall('bot_settings')
+        
+        # Merge with defaults
+        settings = default_settings.copy()
+        for key, value in stored_settings.items():
+            if key in settings:
+                if isinstance(settings[key], bool):
+                    settings[key] = value.lower() in ('true', '1', 'yes')
+                elif isinstance(settings[key], int):
+                    settings[key] = int(value)
+                else:
+                    settings[key] = value
+        
+        return jsonify(settings)
+    except Exception as e:
+        return jsonify(default_settings)
+
+@app.route('/api/bot-settings', methods=['POST'])
+def api_save_bot_settings():
+    """Save bot behavior settings."""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    redis_client = get_redis_client(0)
+    if not redis_client:
+        return jsonify({'error': 'Cannot connect to Redis'}), 500
+    
+    try:
+        # Validate settings
+        required_fields = [
+            'min_group_size', 'max_group_size', 'group_threshold',
+            'message_cooldown', 'user_cooldown', 'rate_limit_window',
+            'rate_limit_max', 'bar_progression_time'
+        ]
+        
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        # Validate ranges
+        if data['min_group_size'] >= data['max_group_size']:
+            return jsonify({'error': 'Min group size must be less than max group size'}), 400
+        
+        if data['min_group_size'] < 2:
+            return jsonify({'error': 'Min group size must be at least 2'}), 400
+        
+        if data['max_group_size'] > 20:
+            return jsonify({'error': 'Max group size cannot exceed 20'}), 400
+        
+        # Save to Redis
+        redis_client.hset('bot_settings', mapping=data)
+        
+        # Also update environment variables file for persistence
+        env_updates = {
+            'MIN_GROUP_SIZE': str(data['min_group_size']),
+            'MAX_GROUP_SIZE': str(data['max_group_size']),
+            'MESSAGE_COOLDOWN': str(data['message_cooldown']),
+            'USER_COOLDOWN': str(data['user_cooldown']),
+            'RATE_LIMIT_WINDOW': str(data['rate_limit_window']),
+            'RATE_LIMIT_MAX': str(data['rate_limit_max'])
+        }
+        
+        # Update .env file
+        try:
+            update_env_file(env_updates)
+        except Exception as e:
+            print(f"Warning: Could not update .env file: {e}")
+        
+        return jsonify({'message': 'Settings saved successfully'})
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def update_env_file(updates):
+    """Update .env file with new values."""
+    env_file = '.env'
+    if not os.path.exists(env_file):
+        return
+    
+    lines = []
+    updated_keys = set()
+    
+    # Read existing file
+    with open(env_file, 'r') as f:
+        lines = f.readlines()
+    
+    # Update existing lines
+    for i, line in enumerate(lines):
+        if '=' in line and not line.strip().startswith('#'):
+            key = line.split('=')[0].strip()
+            if key in updates:
+                lines[i] = f"{key}={updates[key]}\n"
+                updated_keys.add(key)
+    
+    # Add new keys that weren't found
+    for key, value in updates.items():
+        if key not in updated_keys:
+            lines.append(f"{key}={value}\n")
+    
+    # Write back to file
+    with open(env_file, 'w') as f:
+        f.writelines(lines)
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5002, debug=True)
