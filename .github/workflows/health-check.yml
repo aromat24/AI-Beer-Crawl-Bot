@@ -1,0 +1,41 @@
+name: Basic Health Check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install basic dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Basic syntax check
+      run: |
+        python -m py_compile app.py
+        python -m py_compile admin_web.py
+    
+    - name: Check imports
+      run: |
+        python -c "import app; print('✅ app.py imports successfully')"
+        python -c "import sys; sys.path.append('src'); import models; print('✅ models import successfully')"
+    
+    - name: Verify configuration files
+      run: |
+        test -f requirements.txt && echo "✅ requirements.txt exists"
+        test -f .env.example && echo "✅ .env.example exists"
+        test -f README.md && echo "✅ README.md exists"
+        echo "🎉 All basic checks passed!"
