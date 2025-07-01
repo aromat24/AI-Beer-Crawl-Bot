@@ -328,3 +328,20 @@ def get_bars():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@beer_crawl_bp.route('/user/<whatsapp_number>', methods=['GET'])
+def get_user(whatsapp_number):
+    """Check if user exists by WhatsApp number"""
+    try:
+        user = UserPreferences.query.filter_by(whatsapp_number=whatsapp_number).first()
+        
+        if user:
+            return jsonify({
+                'exists': True,
+                'user': user.to_dict()
+            }), 200
+        else:
+            return jsonify({'exists': False}), 404
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

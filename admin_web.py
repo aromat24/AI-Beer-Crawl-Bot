@@ -636,4 +636,8 @@ def api_start_flower():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5002, debug=True)
+    app.run(
+        host='0.0.0.0', 
+        port=int(os.environ.get('ADMIN_PORT', 5002)), 
+        debug=os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
+    )

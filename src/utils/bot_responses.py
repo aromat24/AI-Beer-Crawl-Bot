@@ -19,7 +19,16 @@ class BotResponseManager:
     
     DEFAULT_RESPONSES = {
         "welcome": "Hi! I can help you find a beer crawl group. Just say 'I want to join a beer crawl' to get started! 🍺",
-        "signup_success": "Welcome to Beer Crawl! 🎉 Let me find you a perfect group...",
+        "signup_start": "🍺 Welcome to Beer Crawl! Let's get you set up.\n\nFirst, which area would you like to explore?\n\n{areas}\n\nJust type the area name!",
+        "signup_area_invalid": "🤔 I don't recognize that area. Please choose from:\n\n{areas}",
+        "signup_group_type": "Great choice! 🎯 Now, what type of group would you prefer?\n\n{group_types}\n\nJust type your preference!",
+        "signup_group_type_invalid": "Please choose from these group types:\n\n{group_types}",
+        "signup_gender": "Perfect! 👤 What's your gender? (This helps with group matching)\n\n{genders}\n\nOr just type your preference!",
+        "signup_gender_invalid": "Please choose from:\n\n{genders}",
+        "signup_age": "Almost done! 🎂 What's your age range?\n\n{age_ranges}\n\nJust type the range!",
+        "signup_age_invalid": "Please choose from these age ranges:\n\n{age_ranges}",
+        "signup_success": "🎉 Perfect! You're all set up!\n\n📋 Your preferences:\n• Area: {area}\n• Group type: {group_type}\n• Gender: {gender}\n• Age: {age_range}\n\nLet me find you a perfect group...",
+        "signup_timeout": "⏰ Your signup session has timed out. Type 'join' to start again!",
         "group_found": "Great! I found a group for you in {area}. Your group has {member_count} members and will visit {bar_count} bars.",
         "group_full": "The group you requested is now full! Let me find you another one...",
         "no_groups_available": "No groups are currently available in your area. Would you like me to create a new one for you?",

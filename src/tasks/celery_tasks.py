@@ -16,8 +16,9 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Import bot response manager
+# Import bot response manager and user state manager
 from src.utils.bot_responses import get_bot_response
+from src.utils.user_state import user_state_manager
 
 # Redis connection for deduplication
 redis_client = redis.Redis(
@@ -199,15 +200,27 @@ def process_whatsapp_message(self, message):
         print(f"✅ Processing message from {user_number}: {message_text}")
         
         if message_type == 'text':
-            if 'beer' in message_text or 'crawl' in message_text or 'join' in message_text:
-                # User wants to join beer crawl
-                register_user_task.delay(user_number, message_text)
+            # Check if user is in signup flow
+            user_state = user_state_manager.get_user_state(user_number)
+            
+            if user_state:
+                # User is in signup flow - handle based on current state
+                handle_signup_flow.delay(user_number, message_text, user_state)
+            elif any(keyword in message_text for keyword in ['beer', 'crawl', 'join', 'sign up', 'signup']):
+                # Start new signup flow
+                start_signup_flow.delay(user_number)
             elif 'yes' in message_text:
                 # User confirmed group participation
                 confirm_group_participation.delay(user_number)
             elif "don't like this group" in message_text or "find another" in message_text:
                 # User wants alternative group
                 find_alternative_group.delay(user_number)
+            elif 'help' in message_text:
+                # Show help
+                send_whatsapp_message.delay(
+                    user_number,
+                    get_bot_response("help")
+                )
             else:
                 # Default response
                 send_whatsapp_message.delay(
@@ -221,44 +234,219 @@ def process_whatsapp_message(self, message):
         raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
 
 @celery.task(bind=True, max_retries=3)
-def register_user_task(self, whatsapp_number, message_text):
-    """Register new user and collect preferences"""
+def start_signup_flow(self, whatsapp_number):
+    """Start the signup flow for a new user"""
     try:
-        # Extract area preference from message (basic NLP)
-        area = extract_area_from_message(message_text)
+        # Check if user already exists
+        response = requests.get(f'{API_BASE_URL}/api/user/{whatsapp_number}', timeout=30)
+        
+        if response.status_code == 200:
+            # User exists - go directly to finding group
+            find_group_task.delay(whatsapp_number)
+            return {'status': 'existing_user', 'redirected_to_group_finding': True}
+        
+        # Start signup flow - collect area preference
+        user_state_manager.set_user_state(
+            whatsapp_number, 
+            user_state_manager.STATES['COLLECTING_AREA']
+        )
+        
+        areas = user_state_manager.get_formatted_areas()
+        send_whatsapp_message.delay(
+            whatsapp_number,
+            get_bot_response("signup_start", areas=areas)
+        )
+        
+        return {'status': 'signup_started'}
+        
+    except Exception as exc:
+        print(f"Error starting signup flow: {str(exc)}")
+        raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+
+@celery.task(bind=True, max_retries=3)
+def handle_signup_flow(self, whatsapp_number, message_text, user_state):
+    """Handle user responses during signup flow"""
+    try:
+        current_state = user_state.get('state')
+        
+        if current_state == user_state_manager.STATES['COLLECTING_AREA']:
+            # Extract area from message
+            area = user_state_manager.extract_area_from_message(message_text)
+            
+            if area:
+                # Valid area - update state and ask for group type
+                user_state_manager.update_user_data(whatsapp_number, 'preferred_area', area)
+                user_state_manager.set_user_state(
+                    whatsapp_number, 
+                    user_state_manager.STATES['COLLECTING_GROUP_TYPE'],
+                    user_state.get('data', {})
+                )
+                
+                group_types = user_state_manager.get_formatted_group_types()
+                send_whatsapp_message.delay(
+                    whatsapp_number,
+                    get_bot_response("signup_group_type", group_types=group_types)
+                )
+            else:
+                # Invalid area - ask again
+                areas = user_state_manager.get_formatted_areas()
+                send_whatsapp_message.delay(
+                    whatsapp_number,
+                    get_bot_response("signup_area_invalid", areas=areas)
+                )
+        
+        elif current_state == user_state_manager.STATES['COLLECTING_GROUP_TYPE']:
+            # Extract group type from message
+            group_type = user_state_manager.extract_group_type_from_message(message_text)
+            
+            if group_type:
+                # Valid group type - update state and ask for gender
+                user_state_manager.update_user_data(whatsapp_number, 'preferred_group_type', group_type)
+                user_state_manager.set_user_state(
+                    whatsapp_number, 
+                    user_state_manager.STATES['COLLECTING_GENDER'],
+                    user_state.get('data', {})
+                )
+                
+                genders = user_state_manager.get_formatted_genders()
+                send_whatsapp_message.delay(
+                    whatsapp_number,
+                    get_bot_response("signup_gender", genders=genders)
+                )
+            else:
+                # Invalid group type - ask again
+                group_types = user_state_manager.get_formatted_group_types()
+                send_whatsapp_message.delay(
+                    whatsapp_number,
+                    get_bot_response("signup_group_type_invalid", group_types=group_types)
+                )
+        
+        elif current_state == user_state_manager.STATES['COLLECTING_GENDER']:
+            # Extract gender from message
+            gender = user_state_manager.extract_gender_from_message(message_text)
+            
+            if gender:
+                # Valid gender - update state and ask for age
+                user_state_manager.update_user_data(whatsapp_number, 'gender', gender)
+                user_state_manager.set_user_state(
+                    whatsapp_number, 
+                    user_state_manager.STATES['COLLECTING_AGE'],
+                    user_state.get('data', {})
+                )
+                
+                age_ranges = user_state_manager.get_formatted_age_ranges()
+                send_whatsapp_message.delay(
+                    whatsapp_number,
+                    get_bot_response("signup_age", age_ranges=age_ranges)
+                )
+            else:
+                # Invalid gender - ask again
+                genders = user_state_manager.get_formatted_genders()
+                send_whatsapp_message.delay(
+                    whatsapp_number,
+                    get_bot_response("signup_gender_invalid", genders=genders)
+                )
+        
+        elif current_state == user_state_manager.STATES['COLLECTING_AGE']:
+            # Extract age range from message
+            age_range = user_state_manager.extract_age_range_from_message(message_text)
+            
+            if age_range:
+                # Valid age range - complete signup
+                user_state_manager.update_user_data(whatsapp_number, 'age_range', age_range)
+                user_state_manager.set_user_state(
+                    whatsapp_number, 
+                    user_state_manager.STATES['COMPLETED'],
+                    user_state.get('data', {})
+                )
+                
+                # Complete the registration
+                complete_user_registration.delay(whatsapp_number)
+            else:
+                # Invalid age range - ask again
+                age_ranges = user_state_manager.get_formatted_age_ranges()
+                send_whatsapp_message.delay(
+                    whatsapp_number,
+                    get_bot_response("signup_age_invalid", age_ranges=age_ranges)
+                )
+        
+        return {'status': 'processed', 'state': current_state}
+        
+    except Exception as exc:
+        print(f"Error handling signup flow: {str(exc)}")
+        # Clear user state on error
+        user_state_manager.clear_user_state(whatsapp_number)
+        send_whatsapp_message.delay(
+            whatsapp_number,
+            get_bot_response("error")
+        )
+        raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+
+@celery.task(bind=True, max_retries=3) 
+def complete_user_registration(self, whatsapp_number):
+    """Complete user registration with collected data"""
+    try:
+        # Get completed signup data
+        signup_data = user_state_manager.get_signup_completion_data(whatsapp_number)
+        
+        if not signup_data:
+            send_whatsapp_message.delay(
+                whatsapp_number,
+                get_bot_response("signup_timeout")
+            )
+            return {'status': 'error', 'reason': 'no_signup_data'}
         
         # Register user via API
         user_data = {
             'whatsapp_number': whatsapp_number,
-            'preferred_area': area or 'northern quarter',
-            'preferred_group_type': 'mixed',
-            'gender': None,  # Will be collected later
-            'age_range': None  # Will be collected later
+            'preferred_area': signup_data.get('preferred_area'),
+            'preferred_group_type': signup_data.get('preferred_group_type', 'mixed'),
+            'gender': signup_data.get('gender'),
+            'age_range': signup_data.get('age_range')
         }
         
         response = requests.post(f'{API_BASE_URL}/api/beer-crawl/signup', 
                                json=user_data, timeout=30)
         
         if response.status_code == 201:
-            # User registered successfully, now find group
+            # User registered successfully
+            send_whatsapp_message.delay(
+                whatsapp_number,
+                get_bot_response("signup_success", 
+                    area=signup_data.get('preferred_area', '').title(),
+                    group_type=signup_data.get('preferred_group_type', '').title(),
+                    gender=signup_data.get('gender', '').title(),
+                    age_range=signup_data.get('age_range', '')
+                )
+            )
+            
+            # Clear signup state
+            user_state_manager.clear_user_state(whatsapp_number)
+            
+            # Find group for user
             find_group_task.delay(whatsapp_number)
+            
         elif response.status_code == 400:
             # User might already exist, try finding group anyway
+            user_state_manager.clear_user_state(whatsapp_number)
             find_group_task.delay(whatsapp_number)
         else:
             send_whatsapp_message.delay(
                 whatsapp_number,
-                "Sorry, there was an error processing your request. Please try again."
+                get_bot_response("error")
             )
+            user_state_manager.clear_user_state(whatsapp_number)
     
     except requests.RequestException as exc:
-        print(f"Error registering user: {str(exc)}")
+        print(f"Error completing user registration: {str(exc)}")
+        user_state_manager.clear_user_state(whatsapp_number)
         raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
     except Exception as exc:
-        print(f"Error registering user: {str(exc)}")
+        print(f"Error completing user registration: {str(exc)}")
+        user_state_manager.clear_user_state(whatsapp_number)
         send_whatsapp_message.delay(
             whatsapp_number,
-            "Sorry, there was an error processing your request. Please try again."
+            get_bot_response("error")
         )
 
 @celery.task(bind=True, max_retries=3)

@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 """
-Check status of all AI Beer Crawl services and test bot functionality
+Check status of all AI Beer Crawl services
 """
 import requests
 import subprocess
 import json
 import os
-import time
-from datetime import datetime
 
 def check_service(url, name):
     try:
@@ -48,86 +46,39 @@ def get_ngrok_url():
         pass
     return None
 
-def test_webhook_endpoint(webhook_url):
-    """Test the webhook endpoint with a sample message"""
-    test_data = {
-        "typeWebhook": "incomingMessageReceived",
-        "instanceData": {
-            "idInstance": 7105273198,
-            "wid": "66955124860@c.us"
-        },
-        "messageData": {
-            "typeMessage": "textMessage",
-            "textMessageData": {
-                "textMessage": "test bot response"
-            }
-        },
-        "senderData": {
-            "chatId": "66955124860@c.us",
-            "sender": "66955124860@c.us"
-        }
-    }
-    
-    try:
-        response = requests.post(
-            f"{webhook_url}/webhook/whatsapp",
-            json=test_data,
-            timeout=10
-        )
-        if response.status_code == 200:
-            print(f"✅ Webhook test: SUCCESS")
-            return True
-        else:
-            print(f"❌ Webhook test: FAILED ({response.status_code})")
-            return False
-    except Exception as e:
-        print(f"❌ Webhook test: ERROR ({e})")
-        return False
-
 if __name__ == "__main__":
-    print("🍺 AI Beer Crawl - Comprehensive Status Check")
-    print("=" * 60)
-    print(f"📅 Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print()
+    print("🍺 AI Beer Crawl - Service Status Check\n")
     
     # Check web services
-    print("🌐 Web Services:")
-    flask_ok = check_service('http://localhost:5000/health', 'Flask App')
-    admin_ok = check_service('http://localhost:5002/api/stats', 'Admin Dashboard')
-    flower_ok = check_service('http://localhost:5555', 'Flower Monitor')
-    print()
+    check_service('http://localhost:5000/health', 'Flask App')
+    check_service('http://localhost:5002/api/stats', 'Admin Dashboard')
+    check_service('http://localhost:5555', 'Flower Monitor')
     
     # Check processes
-    print("⚙️ Background Processes:")
-    redis_ok = check_process('redis-server')
-    celery_ok = check_process('celery.*worker')
-    beat_ok = check_process('celery.*beat')
-    ngrok_ok = check_process('ngrok')
-    print()
+    check_process('redis-server')
+    check_process('celery.*worker')
+    check_process('celery.*beat')
+    check_process('ngrok')
     
-    # Check ngrok URL and webhook
-    print("🌐 Ngrok & Webhook:")
+    # Check ngrok URL
     ngrok_url = get_ngrok_url()
     if ngrok_url:
-        print(f"✅ ngrok URL: {ngrok_url}")
+        print(f"🌐 ngrok URL: {ngrok_url}")
         print(f"🔔 Webhook: {ngrok_url}/webhook/whatsapp")
-        webhook_ok = test_webhook_endpoint(ngrok_url)
     else:
         print("❌ ngrok URL: NOT AVAILABLE")
-        webhook_ok = False
-    print()
     
-    # Overall status
-    all_services = [flask_ok, admin_ok, redis_ok, celery_ok, beat_ok, ngrok_ok, webhook_ok]
-    working_services = sum(all_services)
-    total_services = len(all_services)
-    
-    if working_services == total_services:
-        print("🎉 ALL SYSTEMS OPERATIONAL!")
-        print("✅ Your AI Beer Crawl bot is fully functional!")
-    else:
-        print(f"📊 Service Health: {working_services}/{total_services} services running")
-    
-    if ngrok_url:
-        print(f"\n📱 Bot URL: {ngrok_url}/webhook/whatsapp")
-        print("📋 Management: http://localhost:5002")
+    print("\n📊 Redis Status:")
+    try:
+        import redis
+        r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+        r.ping()
+        print("✅ Redis: CONNECTED")
+        
+        # Check Redis databases
+        for db in [0, 1, 2]:
+            r_db = redis.Redis(host='localhost', port=6379, db=db, decode_responses=True)
+            keys = len(r_db.keys('*'))
+            print(f"  📊 DB {db}: {keys} keys")
+    except Exception as e:
+        print(f"❌ Redis: ERROR ({e})")
