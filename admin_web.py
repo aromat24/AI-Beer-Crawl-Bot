@@ -462,5 +462,178 @@ def update_env_file(updates):
     with open(env_file, 'w') as f:
         f.writelines(lines)
 
+# Bot response management endpoints
+@app.route('/api/bot-responses', methods=['GET'])
+def api_get_bot_responses():
+    """Get all bot responses."""
+    try:
+        # Import here to avoid circular imports
+        sys.path.insert(0, os.path.dirname(__file__))
+        from src.utils.bot_responses import bot_response_manager
+        
+        responses = bot_response_manager.get_all_responses()
+        return jsonify({
+            'responses': responses,
+            'keys': list(responses.keys())
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/bot-responses', methods=['POST'])
+def api_save_bot_responses():
+    """Save bot responses."""
+    data = request.get_json()
+    
+    if not data or 'responses' not in data:
+        return jsonify({'error': 'No responses data provided'}), 400
+    
+    try:
+        sys.path.insert(0, os.path.dirname(__file__))
+        from src.utils.bot_responses import bot_response_manager
+        
+        success = bot_response_manager.save_responses(data['responses'])
+        
+        if success:
+            return jsonify({'message': 'Bot responses saved successfully'})
+        else:
+            return jsonify({'error': 'Failed to save bot responses'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/bot-responses/reset', methods=['POST'])
+def api_reset_bot_responses():
+    """Reset bot responses to defaults."""
+    try:
+        sys.path.insert(0, os.path.dirname(__file__))
+        from src.utils.bot_responses import bot_response_manager
+        
+        success = bot_response_manager.reset_to_defaults()
+        
+        if success:
+            return jsonify({'message': 'Bot responses reset to defaults'})
+        else:
+            return jsonify({'error': 'Failed to reset bot responses'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Celery/Flower monitoring endpoints
+@app.route('/api/celery/stats')
+def api_celery_stats():
+    """Get Celery worker and task statistics."""
+    try:
+        import requests
+        
+        # Try to get stats from Flower if it's running
+        flower_url = 'http://localhost:5555'
+        stats = {
+            'flower_available': False,
+            'workers': [],
+            'tasks': {
+                'active': 0,
+                'processed': 0,
+                'failed': 0,
+                'retried': 0
+            },
+            'queues': {}
+        }
+        
+        try:
+            # Check if Flower is running
+            response = requests.get(f'{flower_url}/api/workers', timeout=2)
+            if response.status_code == 200:
+                stats['flower_available'] = True
+                workers_data = response.json()
+                
+                for worker_name, worker_info in workers_data.items():
+                    stats['workers'].append({
+                        'name': worker_name,
+                        'status': 'online' if worker_info.get('status') else 'offline',
+                        'active_tasks': len(worker_info.get('active', [])),
+                        'processed': worker_info.get('processed', 0),
+                        'load_avg': worker_info.get('loadavg', [0, 0, 0])
+                    })
+            
+            # Get task stats
+            response = requests.get(f'{flower_url}/api/tasks', timeout=2)
+            if response.status_code == 200:
+                tasks_data = response.json()
+                for task_id, task_info in tasks_data.items():
+                    state = task_info.get('state', 'unknown').lower()
+                    if state == 'success':
+                        stats['tasks']['processed'] += 1
+                    elif state == 'failure':
+                        stats['tasks']['failed'] += 1
+                    elif state == 'retry':
+                        stats['tasks']['retried'] += 1
+                    elif state in ['pending', 'started']:
+                        stats['tasks']['active'] += 1
+                        
+        except requests.exceptions.RequestException:
+            # Flower not available, get basic stats from Redis
+            redis_client = get_redis_client(0)
+            if redis_client:
+                try:
+                    # Get basic queue info
+                    celery_keys = redis_client.keys('celery*')
+                    stats['queues']['celery'] = len(celery_keys) if celery_keys else 0
+                    
+                    # Try to get some basic worker info
+                    worker_keys = redis_client.keys('_kombu.binding.*')
+                    stats['redis_queues'] = len(worker_keys) if worker_keys else 0
+                except Exception as e:
+                    stats['redis_error'] = str(e)
+        
+        return jsonify(stats)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/celery/flower/start', methods=['POST'])
+def api_start_flower():
+    """Start Flower monitoring."""
+    try:
+        import subprocess
+        
+        # Check if Flower is already running
+        try:
+            import requests
+            response = requests.get('http://localhost:5555', timeout=2)
+            if response.status_code == 200:
+                return jsonify({'message': 'Flower is already running on port 5555'})
+        except:
+            pass
+        
+        # Start Flower in background
+        cmd = ['celery', '-A', 'src.tasks.celery_tasks.celery', 'flower', '--port=5555']
+        process = subprocess.Popen(cmd, 
+                                 stdout=subprocess.PIPE, 
+                                 stderr=subprocess.PIPE,
+                                 cwd=os.path.dirname(os.path.abspath(__file__)))
+        
+        # Give it a moment to start
+        import time
+        time.sleep(2)
+        
+        # Check if it started successfully
+        try:
+            import requests
+            response = requests.get('http://localhost:5555', timeout=2)
+            if response.status_code == 200:
+                return jsonify({
+                    'message': 'Flower started successfully',
+                    'url': 'http://localhost:5555',
+                    'pid': process.pid
+                })
+        except:
+            pass
+        
+        return jsonify({
+            'message': 'Flower start command sent, check http://localhost:5555 in a few seconds',
+            'url': 'http://localhost:5555'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5002, debug=True)

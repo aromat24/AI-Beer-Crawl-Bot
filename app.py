@@ -19,6 +19,10 @@ from src.models.beer_crawl import UserPreferences, Bar, CrawlGroup, GroupMember,
 from src.routes.user import user_bp
 from src.routes.beer_crawl import beer_crawl_bp
 
+# Import Celery tasks at top level
+from src.tasks.celery_tasks import process_whatsapp_message, celery as celery_app
+from src.integrations.green_api import process_green_api_webhook
+
 def create_app(config_name='development'):
     """Application factory pattern"""
     app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
@@ -48,6 +52,17 @@ def create_app(config_name='development'):
     app.config['CELERY_BROKER_URL'] = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
     app.config['CELERY_RESULT_BACKEND'] = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
     
+    # Configure Celery with Flask app context
+    celery_app.conf.update(app.config)
+    
+    class ContextTask(celery_app.Task):
+        """Make celery tasks work with Flask app context"""
+        def __call__(self, *args, **kwargs):
+            with app.app_context():
+                return self.run(*args, **kwargs)
+    
+    celery_app.Task = ContextTask
+    
     # WhatsApp configuration
     app.config['WHATSAPP_TOKEN'] = os.environ.get('WHATSAPP_TOKEN')
     app.config['WHATSAPP_PHONE_ID'] = os.environ.get('WHATSAPP_PHONE_ID')
@@ -69,17 +84,17 @@ def create_app(config_name='development'):
     def whatsapp_webhook():
         """Handle incoming WhatsApp messages from Green API or Facebook"""
         try:
-            from src.tasks.celery_tasks import process_whatsapp_message
-            from src.integrations.green_api import process_green_api_webhook
-            
             data = request.get_json()
+            print(f"📥 Webhook received data: {data}")
             
             # Check if this is a Green API webhook
             if 'typeWebhook' in data:
                 # Green API webhook format
                 processed_message = process_green_api_webhook(data)
                 if processed_message:
-                    process_whatsapp_message.delay(processed_message)
+                    print(f"✅ Queuing Celery task for message: {processed_message}")
+                    task = process_whatsapp_message.delay(processed_message)
+                    print(f"📋 Task queued with ID: {task.id}")
                 return jsonify({'status': 'received'}), 200
             
             # Facebook WhatsApp Business API webhook format
@@ -90,7 +105,8 @@ def create_app(config_name='development'):
                             if 'value' in change and 'messages' in change['value']:
                                 for message in change['value']['messages']:
                                     # Process message asynchronously
-                                    process_whatsapp_message.delay(message)
+                                    task = process_whatsapp_message.delay(message)
+                                    print(f"📋 Task queued with ID: {task.id}")
             
             return jsonify({'status': 'received'}), 200
         
@@ -105,7 +121,7 @@ def create_app(config_name='development'):
         challenge = request.args.get('hub.challenge')
         
         if verify_token == app.config['WHATSAPP_VERIFY_TOKEN']:
-            return challenge
+            return challenge or '', 200
         return 'Invalid verification token', 403
     
     # Health check endpoint

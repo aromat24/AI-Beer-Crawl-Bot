@@ -294,6 +294,84 @@
             background: #5a6268;
             border-color: #545b62;
         }
+
+        /* Bot Response Editor Styles */
+        .response-editor {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 15px;
+            background: #f8f9fa;
+        }
+
+        .response-item {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            gap: 10px;
+            align-items: start;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .response-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .response-label {
+            font-weight: 500;
+            color: #495057;
+            padding-top: 8px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .response-textarea {
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            resize: vertical;
+            min-height: 60px;
+            font-family: inherit;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .response-textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+
+        /* Celery Status Indicators */
+        .celery-worker {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            font-size: 11px;
+        }
+
+        .worker-status {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: 500;
+            font-size: 10px;
+        }
+
+        .worker-status.online {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .worker-status.offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
     </style>
 </head>
 <body>
@@ -326,6 +404,18 @@
             <div class="card">
                 <h3>🔴 Redis Statistics</h3>
                 <div id="redis-stats" class="loading">Loading...</div>
+            </div>
+
+            <!-- Celery/Flower Monitoring -->
+            <div class="card">
+                <h3>⚙️ Celery Monitoring</h3>
+                <div id="celery-stats" class="loading">Loading...</div>
+                <div style="margin-top: 15px;">
+                    <button class="btn" onclick="startFlower()">🌸 Start Flower</button>
+                    <button class="btn" onclick="openFlower()">📊 Open Flower UI</button>
+                    <button class="btn" onclick="refreshCeleryStats()">🔄 Refresh</button>
+                </div>
+                <div id="flower-result" style="margin-top: 10px;"></div>
             </div>
         </div>
 
@@ -428,6 +518,25 @@
                     </div>
 
                     <div id="settings-result" style="margin-top: 15px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bot Response Management -->
+        <div class="dashboard-grid" style="margin-top: 20px;">
+            <div class="card" style="grid-column: 1 / -1;">
+                <h3>💬 Bot Response Management</h3>
+                <div class="bot-controls">
+                    <div class="control-section">
+                        <h4>📝 Edit Bot Responses</h4>
+                        <div id="bot-responses-container" class="loading">Loading responses...</div>
+                        <div class="control-actions">
+                            <button class="btn btn-primary" onclick="saveBotResponses()">💾 Save Responses</button>
+                            <button class="btn btn-secondary" onclick="loadBotResponses()">🔄 Reload</button>
+                            <button class="btn btn-warning" onclick="resetBotResponses()">⚠️ Reset to Defaults</button>
+                        </div>
+                        <div id="bot-responses-result" style="margin-top: 15px;"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -756,11 +865,205 @@
             }
         }
 
+        // Celery/Flower monitoring functions
+        async function loadCeleryStats() {
+            const data = await fetchData('/api/celery/stats');
+            const container = document.getElementById('celery-stats');
+            
+            if (data.error) {
+                container.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                return;
+            }
+
+            let html = '';
+            
+            if (data.flower_available) {
+                html += '<div class="success">🌸 Flower is running</div>';
+                html += `
+                    <div class="stat-item">
+                        <span class="stat-label">Workers:</span>
+                        <span class="stat-value">${data.workers.length}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Active Tasks:</span>
+                        <span class="stat-value">${data.tasks.active}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Processed:</span>
+                        <span class="stat-value">${data.tasks.processed}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Failed:</span>
+                        <span class="stat-value">${data.tasks.failed}</span>
+                    </div>
+                `;
+                
+                if (data.workers.length > 0) {
+                    html += '<h5>Workers:</h5>';
+                    data.workers.forEach(worker => {
+                        html += `
+                            <div class="stat-item" style="font-size: 11px;">
+                                <span>${worker.name.split('@')[0]}</span>
+                                <span style="color: ${worker.status === 'online' ? '#27ae60' : '#e74c3c'}">
+                                    ${worker.status} (${worker.active_tasks} active)
+                                </span>
+                            </div>
+                        `;
+                    });
+                }
+            } else {
+                html += '<div class="error">❌ Flower not available</div>';
+                if (data.redis_queues !== undefined) {
+                    html += `
+                        <div class="stat-item">
+                            <span class="stat-label">Redis Queue Keys:</span>
+                            <span class="stat-value">${data.redis_queues}</span>
+                        </div>
+                    `;
+                }
+            }
+
+            container.innerHTML = html;
+        }
+
+        async function startFlower() {
+            const resultDiv = document.getElementById('flower-result');
+            resultDiv.innerHTML = '<div class="loading">Starting Flower...</div>';
+
+            try {
+                const response = await fetch('/api/celery/flower/start', { method: 'POST' });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<div class="success">${data.message}</div>`;
+                    setTimeout(loadCeleryStats, 2000);
+                } else {
+                    resultDiv.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        function openFlower() {
+            window.open('http://localhost:5555', '_blank');
+        }
+
+        function refreshCeleryStats() {
+            loadCeleryStats();
+        }
+
+        // Bot Response Management functions
+        let currentBotResponses = {};
+
+        async function loadBotResponses() {
+            const container = document.getElementById('bot-responses-container');
+            container.innerHTML = '<div class="loading">Loading bot responses...</div>';
+
+            try {
+                const data = await fetchData('/api/bot-responses');
+                
+                if (data.error) {
+                    container.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                    return;
+                }
+
+                currentBotResponses = data.responses;
+                renderBotResponsesEditor(data.responses);
+            } catch (error) {
+                container.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        function renderBotResponsesEditor(responses) {
+            const container = document.getElementById('bot-responses-container');
+            
+            let html = '<div style="display: grid; gap: 15px;">';
+            
+            Object.entries(responses).forEach(([key, value]) => {
+                html += `
+                    <div style="display: grid; grid-template-columns: 200px 1fr; gap: 10px; align-items: start;">
+                        <label style="font-weight: 500; color: #495057; padding-top: 8px;">
+                            ${key.replace(/_/g, ' ').toUpperCase()}:
+                        </label>
+                        <textarea 
+                            id="response-${key}" 
+                            style="padding: 8px; border: 1px solid #ced4da; border-radius: 4px; resize: vertical; min-height: 60px; font-family: inherit;"
+                            placeholder="Enter ${key} response..."
+                        >${value}</textarea>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        async function saveBotResponses() {
+            const resultDiv = document.getElementById('bot-responses-result');
+            resultDiv.innerHTML = '<div class="loading">Saving bot responses...</div>';
+
+            try {
+                const updatedResponses = {};
+                
+                Object.keys(currentBotResponses).forEach(key => {
+                    const textarea = document.getElementById(`response-${key}`);
+                    if (textarea) {
+                        updatedResponses[key] = textarea.value;
+                    }
+                });
+
+                const response = await fetch('/api/bot-responses', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({responses: updatedResponses})
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<div class="success">✅ ${data.message}</div>`;
+                    currentBotResponses = updatedResponses;
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function resetBotResponses() {
+            if (!confirm('Are you sure you want to reset all bot responses to defaults? This will overwrite your current responses.')) {
+                return;
+            }
+
+            const resultDiv = document.getElementById('bot-responses-result');
+            resultDiv.innerHTML = '<div class="loading">Resetting bot responses...</div>';
+
+            try {
+                const response = await fetch('/api/bot-responses/reset', { method: 'POST' });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `<div class="success">✅ ${data.message}</div>`;
+                    setTimeout(loadBotResponses, 1000);
+                } else {
+                    resultDiv.innerHTML = `<div class="error">❌ Error: ${data.error}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
         function refreshAllData() {
             loadSystemStats();
             loadUsers();
             loadCrawls();
             loadRedisData();
+            loadCeleryStats(); // Add Celery stats to refresh
+            loadBotResponses(); // Add bot responses to refresh
             loadLogs();
             loadSettings(); // Load bot settings too
         }

@@ -16,6 +16,9 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# Import bot response manager
+from src.utils.bot_responses import get_bot_response
+
 # Redis connection for deduplication
 redis_client = redis.Redis(
     host='localhost', 
@@ -104,7 +107,7 @@ def get_user_message_count(user_number, window_seconds=300):
     try:
         count_key = f"msg_count:{user_number}"
         current_count = redis_client.get(count_key)
-        return int(current_count) if current_count else 0
+        return int(str(current_count)) if current_count else 0
     except:
         return 0
 
@@ -116,7 +119,7 @@ def increment_user_message_count(user_number, window_seconds=300):
         if current_count == 1:
             # Set expiration on first increment
             redis_client.expire(count_key, window_seconds)
-        return int(current_count) if current_count else 1
+        return int(str(current_count)) if current_count else 1
     except:
         return 1
 
@@ -189,7 +192,7 @@ def process_whatsapp_message(self, message):
             print(f"🚨 Rate limit exceeded for {user_number} (count: {message_count})")
             send_whatsapp_message.delay(
                 user_number,
-                f"⚠️ Please slow down! You're sending too many messages. Try again in {RATE_LIMIT_WINDOW//60} minutes."
+                get_bot_response("rate_limit", minutes=RATE_LIMIT_WINDOW//60)
             )
             return {'status': 'rate_limited', 'count': message_count}
         
@@ -209,7 +212,7 @@ def process_whatsapp_message(self, message):
                 # Default response
                 send_whatsapp_message.delay(
                     user_number,
-                    "Hi! I can help you find a beer crawl group. Just say 'I want to join a beer crawl' to get started! 🍺"
+                    get_bot_response("welcome")
                 )
     
     except Exception as exc:
@@ -613,7 +616,7 @@ from celery.schedules import crontab
 celery.conf.beat_schedule = {
     'daily-cleanup': {
         'task': 'src.tasks.celery_tasks.daily_cleanup',
-        'schedule': crontab(hour=6, minute=0),  # Run at 6:00 AM daily
+        'schedule': crontab(hour='6', minute='0'),  # Run at 6:00 AM daily
     },
 }
 
