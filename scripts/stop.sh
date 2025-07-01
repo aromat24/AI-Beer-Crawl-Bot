@@ -58,7 +58,40 @@ pkill -f "celery worker" 2>/dev/null && echo -e "${GREEN}✓ Stopped remaining C
 pkill -f "celery beat" 2>/dev/null && echo -e "${GREEN}✓ Stopped remaining Celery beat processes${NC}"
 
 # Kill any remaining Flask processes
-pkill -f "python.*app.py" 2>/dev/null && echo -e "${GREEN}✓ Stopped remaining Flask processes${NC}"
+pkill -f "python.*app.py" 2>/dev/null && echo -e "${GREEN}✓ Stopped remaining Flask app processes${NC}"
+pkill -f "python.*admin_web.py" 2>/dev/null && echo -e "${GREEN}✓ Stopped remaining Admin web processes${NC}"
+
+# Additional cleanup - kill by port if needed
+echo -e "${YELLOW}Checking for processes on required ports...${NC}"
+
+# Check port 5000 (Flask app)
+FLASK_PORT_PID=$(lsof -ti:5000 2>/dev/null)
+if [ ! -z "$FLASK_PORT_PID" ]; then
+    kill -9 $FLASK_PORT_PID 2>/dev/null && echo -e "${GREEN}✓ Killed process on port 5000${NC}"
+fi
+
+# Check port 5002 (Admin dashboard)
+ADMIN_PORT_PID=$(lsof -ti:5002 2>/dev/null)
+if [ ! -z "$ADMIN_PORT_PID" ]; then
+    kill -9 $ADMIN_PORT_PID 2>/dev/null && echo -e "${GREEN}✓ Killed process on port 5002${NC}"
+fi
+
+# Wait a moment for processes to clean up
+sleep 2
+
+# Final verification
+echo -e "${YELLOW}Verifying all services stopped...${NC}"
+if lsof -ti:5000 >/dev/null 2>&1; then
+    echo -e "${RED}✗ Warning: Something still running on port 5000${NC}"
+else
+    echo -e "${GREEN}✓ Port 5000 is free${NC}"
+fi
+
+if lsof -ti:5002 >/dev/null 2>&1; then
+    echo -e "${RED}✗ Warning: Something still running on port 5002${NC}"
+else
+    echo -e "${GREEN}✓ Port 5002 is free${NC}"
+fi
 
 # Optionally stop Redis (uncomment if you want to stop Redis too)
 # pkill -x redis-server && echo -e "${GREEN}✓ Redis stopped${NC}"
