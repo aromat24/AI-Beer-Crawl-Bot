@@ -600,42 +600,42 @@
         async function saveSettings() {
             try {
                 const settings = {};
-                
                 // Collect numeric settings
                 const fields = [
                     'min_group_size', 'max_group_size', 'group_threshold',
+                    'group_deletion_timer', 'session_duration',
                     'message_cooldown', 'user_cooldown', 'rate_limit_window',
-                    'rate_limit_max', 'bar_progression_time'
+                    'rate_limit_max', 'bar_progression_time',
+                    'wait_between_bars', 'join_deadline', 'auto_start_threshold'
                 ];
-                
                 fields.forEach(field => {
-                    const element = document.getElementById(field.replace('_', '-'));
+                    const element = document.getElementById(field.replace(/_/g, '-'));
                     if (element) {
                         settings[field] = parseInt(element.value);
                     }
                 });
-                
                 // Collect boolean settings
                 const checkboxes = [
                     'auto_group_creation', 'smart_matching', 'auto_progression',
                     'welcome_messages', 'reminder_messages', 'debug_mode'
                 ];
-                
                 checkboxes.forEach(checkbox => {
-                    const element = document.getElementById(checkbox.replace('_', '-'));
+                    const element = document.getElementById(checkbox.replace(/_/g, '-'));
                     if (element) {
                         settings[checkbox] = element.checked;
                     }
                 });
-                
                 const response = await fetch(`${API_BASE_URL}/api/bot-settings`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(settings)
                 });
-                
                 const data = await response.json();
-                showSettingsResult(data.message, !data.error);
+                if (data.error) {
+                    showSettingsResult(data.error, false);
+                } else {
+                    showSettingsResult(data.message || 'Settings saved successfully', true);
+                }
             } catch (error) {
                 showSettingsResult('Error saving settings', false);
             }
