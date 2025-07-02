@@ -68,7 +68,7 @@ get_ngrok_url() {
     local attempt=1
     
     while [ $attempt -le $max_attempts ]; do
-        local ngrok_url=$(curl -s http://localhost:$NGROK_WEB_PORT/api/tunnels | jq -r '.tunnels[0].public_url // empty' 2>/dev/null)
+        local ngrok_url=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url // empty' 2>/dev/null)
         if [ ! -z "$ngrok_url" ] && [ "$ngrok_url" != "null" ]; then
             echo "$ngrok_url"
             return 0
@@ -77,6 +77,18 @@ get_ngrok_url() {
         attempt=$((attempt + 1))
     done
     return 1
+}
+
+# Function to update Green API webhook
+update_green_api_webhook() {
+    local ngrok_url=$1
+    echo -e "${BLUE}📡 Updating Green API webhook with new ngrok URL: ${ngrok_url}${NC}"
+    
+    if python3 update_webhook.py "$ngrok_url/webhook/whatsapp"; then
+        echo -e "${GREEN}✅ Green API webhook updated successfully to: ${ngrok_url}/webhook/whatsapp${NC}"
+    else
+        echo -e "${RED}✗ Failed to update Green API webhook${NC}"
+    fi
 }
 
 # Set environment variables
@@ -117,6 +129,19 @@ API_BASE_URL=http://localhost:$FLASK_PORT
 EOF
     echo -e "${GREEN}✓ Created .env file with default values${NC}"
     echo -e "${YELLOW}⚠️  Please update Green API credentials in .env file${NC}"
+fi
+
+# Hardlock ports for future use
+export FLASK_PORT=5000
+export ADMIN_PORT=5002
+export FLOWER_PORT=5555
+export REDIS_PORT=6379
+export NGROK_WEB_PORT=4040
+
+# Ensure ports are locked
+if check_port $FLASK_PORT || check_port $ADMIN_PORT || check_port $FLOWER_PORT || check_port $NGROK_WEB_PORT; then
+    echo -e "${RED}❌ One or more locked ports are already in use. Please free them before starting services.${NC}"
+    exit 1
 fi
 
 # 1. Check and start Redis on locked port
@@ -197,7 +222,11 @@ if check_port $NGROK_WEB_PORT; then
     exit 1
 fi
 
-nohup ngrok http $FLASK_PORT --web-addr=localhost:$NGROK_WEB_PORT --region=$NGROK_REGION > logs/ngrok.log 2>&1 &
+# Set ngrok auth token
+export NGROK_AUTHTOKEN="2zDlJZrkjxxw6LnIvdrSJzHVMn4_4f2Uy3sTKyRsRbgZRAPQs"
+
+# Start ngrok tunnel with auth token
+nohup ngrok http $FLASK_PORT --authtoken=$NGROK_AUTHTOKEN > logs/ngrok.log 2>&1 &
 NGROK_PID=$!
 echo $NGROK_PID > tmp/ngrok.pid
 sleep 5
@@ -209,13 +238,7 @@ if [ $? -eq 0 ] && [ ! -z "$NGROK_URL" ]; then
     echo -e "${GREEN}🌐 Public URL: $NGROK_URL${NC}"
     
     # Update webhook URL
-    echo -e "${BLUE}📡 Updating webhook URL...${NC}"
-    python update_webhook.py "$NGROK_URL/webhook/whatsapp"
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ Webhook URL updated successfully${NC}"
-    else
-        echo -e "${YELLOW}⚠️ Webhook URL update failed (non-critical)${NC}"
-    fi
+    update_green_api_webhook "$NGROK_URL"
 else
     echo -e "${RED}✗ Failed to get ngrok URL${NC}"
     NGROK_URL="NOT AVAILABLE"

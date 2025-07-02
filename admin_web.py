@@ -75,20 +75,36 @@ def api_stats():
         try:
             cursor = conn.cursor()
             
-            # User stats
-            cursor.execute("SELECT COUNT(*) as count FROM users")
+            # User stats from user_preferences table
+            cursor.execute("SELECT COUNT(*) as count FROM user_preferences")
             stats['total_users'] = cursor.fetchone()[0]
+            
+            # Since user_preferences represents onboarded users
+            stats['onboarded_users'] = stats['total_users']
             
             # Beer crawl stats
             cursor.execute("SELECT COUNT(*) as count FROM crawl_groups")
             stats['total_crawls'] = cursor.fetchone()[0]
             
-            # Set defaults for other stats
-            stats['onboarded_users'] = 0
-            stats['active_crawls'] = 0
-            stats['completed_crawls'] = 0
-            stats['new_users_24h'] = 0
-            stats['new_crawls_24h'] = 0
+            cursor.execute("SELECT COUNT(*) as count FROM crawl_groups WHERE status = 'ACTIVE'")
+            stats['active_crawls'] = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(*) as count FROM crawl_groups WHERE status = 'COMPLETED'")
+            stats['completed_crawls'] = cursor.fetchone()[0]
+            
+            # Users in last 24h
+            cursor.execute("""
+                SELECT COUNT(*) as count FROM user_preferences 
+                WHERE datetime(created_at) > datetime('now', '-24 hours')
+            """)
+            stats['new_users_24h'] = cursor.fetchone()[0]
+            
+            # Crawls in last 24h
+            cursor.execute("""
+                SELECT COUNT(*) as count FROM crawl_groups 
+                WHERE datetime(created_at) > datetime('now', '-24 hours')
+            """)
+            stats['new_crawls_24h'] = cursor.fetchone()[0]
             
         except Exception as e:
             stats['db_error'] = str(e)
@@ -136,8 +152,9 @@ def api_users():
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, username, email, created_at, updated_at
-            FROM users 
+            SELECT id, whatsapp_number, preferred_area, preferred_group_type, 
+                   gender, age_range, created_at, updated_at
+            FROM user_preferences 
             ORDER BY created_at DESC 
             LIMIT 100
         """)
@@ -146,15 +163,17 @@ def api_users():
         for row in cursor.fetchall():
             users.append({
                 'id': row[0],
-                'username': row[1],
-                'email': row[2],
-                'phone_number': row[1],  # Use username as phone_number for compatibility
-                'name': row[1],  # Use username as name for compatibility
-                'age': 'N/A',
-                'gender': 'N/A',
-                'location': 'N/A',
-                'created_at': row[3],
-                'updated_at': row[4]
+                'whatsapp_number': row[1],
+                'name': row[1],  # Use whatsapp_number as name for display
+                'phone_number': row[1],
+                'preferred_area': row[2],
+                'preferred_group_type': row[3],
+                'gender': row[4] or 'N/A',
+                'age_range': row[5] or 'N/A',
+                'location': row[2],  # Use preferred_area as location
+                'onboarding_completed': True,  # If they're in user_preferences, they're onboarded
+                'created_at': row[6],
+                'updated_at': row[7]
             })
         
         return jsonify(users)
@@ -301,15 +320,16 @@ def api_clear_database():
     try:
         cursor = conn.cursor()
         
-        # Clear all data but keep schema - use correct table names
-        cursor.execute("DELETE FROM group_members")
+        # Clear all data but keep schema - use correct table names and order
         cursor.execute("DELETE FROM crawl_sessions")
+        cursor.execute("DELETE FROM group_members")
         cursor.execute("DELETE FROM crawl_groups")
         cursor.execute("DELETE FROM user_preferences")
-        cursor.execute("DELETE FROM users")
+        cursor.execute("DELETE FROM users")  # This table is empty anyway
+        cursor.execute("DELETE FROM bars")
         
         conn.commit()
-        return jsonify({'message': 'Cleared all database data (users, crawls, associations)'})
+        return jsonify({'message': 'Cleared all database data (users, crawls, bars, sessions)'})
     except Exception as e:
         conn.rollback()
         return jsonify({'error': str(e)}), 500
@@ -418,7 +438,8 @@ def api_save_bot_settings():
             'MESSAGE_COOLDOWN': str(data['message_cooldown']),
             'USER_COOLDOWN': str(data['user_cooldown']),
             'RATE_LIMIT_WINDOW': str(data['rate_limit_window']),
-            'RATE_LIMIT_MAX': str(data['rate_limit_max'])
+            'RATE_LIMIT_MAX': str(data['rate_limit_max']),
+            'DEBUG_MODE': 'true' if data.get('debug_mode', False) else 'false'
         }
         
         # Update .env file
@@ -634,6 +655,53 @@ def api_start_flower():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/debug/database')
+def api_debug_database():
+    """Debug endpoint to inspect database schema."""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Cannot connect to database'}), 500
+    
+    try:
+        cursor = conn.cursor()
+        
+        # Get all tables
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+        tables = cursor.fetchall()
+        
+        result = {
+            'database_path': DB_PATH,
+            'tables': []
+        }
+        
+        for table in tables:
+            table_name = table[0]
+            
+            # Get table schema
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            columns = cursor.fetchall()
+            
+            # Get row count
+            cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+            row_count = cursor.fetchone()[0]
+            
+            # Get sample data
+            cursor.execute(f"SELECT * FROM {table_name} LIMIT 3")
+            sample_data = cursor.fetchall()
+            
+            result['tables'].append({
+                'name': table_name,
+                'columns': [{'name': col[1], 'type': col[2], 'nullable': not col[3]} for col in columns],
+                'row_count': row_count,
+                'sample_data': sample_data
+            })
+        
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
 
 if __name__ == '__main__':
     app.run(
